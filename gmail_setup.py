@@ -151,7 +151,7 @@ def create_env_example():
     """Create .env.example with Gmail configuration."""
     env_content = """# Gmail OAuth2 Configuration
 GMAIL_CREDENTIALS_PATH=credentials.json
-GMAIL_TOKEN_PATH=token.pickle
+GMAIL_TOKEN_PATH=token.json
 
 # LLM Configuration
 LLM_PROVIDER=openai
@@ -174,7 +174,7 @@ def main():
     
     # Get paths from environment or defaults
     credentials_path = os.getenv('GMAIL_CREDENTIALS_PATH', 'credentials.json')
-    token_path = os.getenv('GMAIL_TOKEN_PATH', 'token.pickle')
+    token_path = os.getenv('GMAIL_TOKEN_PATH', 'token.json')
     
     console.print(f"[blue]Credentials path: {credentials_path}[/blue]")
     console.print(f"[blue]Token path: {token_path}[/blue]\n")
@@ -235,7 +235,7 @@ def main():
 3. Run the research agent: `python research_email_cli.py`
 
 ## Security reminders:
-- **Never commit credentials.json or token.pickle to version control**
+- **Never commit credentials.json or token.json to version control**
 - Add them to your .gitignore file
 - Keep your API keys secure in the .env file
     """

@@ -15,7 +15,7 @@ def test_deps():
     """Create test dependencies."""
     return EmailAgentDependencies(
         gmail_credentials_path="test_credentials.json",
-        gmail_token_path="test_token.pickle",
+        gmail_token_path="test_token.json",
         session_id="test_session"
     )
 
@@ -85,10 +85,10 @@ def test_email_agent_dependencies():
     """Test EmailAgentDependencies validation."""
     deps = EmailAgentDependencies(
         gmail_credentials_path="credentials.json",
-        gmail_token_path="token.pickle",
+        gmail_token_path="token.json",
         session_id="session_123"
     )
     
     assert deps.gmail_credentials_path == "credentials.json"
-    assert deps.gmail_token_path == "token.pickle"
+    assert deps.gmail_token_path == "token.json"
     assert deps.session_id == "session_123"
