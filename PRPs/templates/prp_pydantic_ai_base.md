@@ -15,6 +15,29 @@ description: "Template for generating comprehensive PRPs for PydanticAI agent de
 4. **Context Engineering Integration**: Apply proven context engineering workflows to AI agent development
 5. **Comprehensive Testing**: Use TestModel and FunctionModel for thorough agent validation
 
+## ⚠️ Implementation Guidelines: Don't Over-Engineer
+
+**IMPORTANT**: Keep your agent implementation focused and practical. Don't build unnecessary complexity.
+
+### What NOT to do:
+- ❌ **Don't create dozens of tools** - Build only the tools your agent actually needs
+- ❌ **Don't over-complicate dependencies** - Keep dependency injection simple and focused
+- ❌ **Don't add unnecessary abstractions** - Follow main_agent_reference patterns directly
+- ❌ **Don't build complex workflows** unless specifically required
+- ❌ **Don't add structured output** unless validation is specifically needed (default to string)
+
+### What TO do:
+- ✅ **Start simple** - Build the minimum viable agent that meets requirements
+- ✅ **Add tools incrementally** - Implement only what the agent needs to function
+- ✅ **Follow main_agent_reference** - Use proven patterns, don't reinvent
+- ✅ **Use string output by default** - Only add result_type when validation is required
+- ✅ **Test early and often** - Use TestModel to validate as you build
+
+### Key Question:
+**"Does this agent really need this feature to accomplish its core purpose?"**
+
+If the answer is no, don't build it. Keep it simple, focused, and functional.
+
 ---
 
 ## Goal
@@ -89,6 +112,10 @@ description: "Template for generating comprehensive PRPs for PydanticAI agent de
 - path: examples/
   why: Reference implementations for Pydantic AI agents
   content: A bunch of already built simple Pydantic AI examples to reference including how to set up models and providers
+
+- path: examples/cli.py
+  why: Shows real-world interaction with Pydantic AI agents
+  content: Conversational CLI with streaming, tool call visibility, and conversation handling - demonstrates how users actually interact with agents
 ```
 
 ### Agent Architecture Research

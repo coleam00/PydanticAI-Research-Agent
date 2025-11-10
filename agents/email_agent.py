@@ -1,130 +1,239 @@
-"""Email Agent with Gmail integration and professional email generation."""
+"""
+Email Agent that creates Gmail drafts with professional email composition.
+"""
 
-import base64
 import logging
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import List
+from typing import Dict, Any, List
+from dataclasses import dataclass
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from pydantic_ai import Agent, RunContext
 
-from .dependencies import EmailAgentDependencies
-from .models import EmailDraft, ResearchSummary
-from .providers import get_llm_model
+from config.providers import get_llm_model
+from models.email_models import EmailDraft
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# Email agent with structured output for professional emails
+
+SYSTEM_PROMPT = """
+You are a professional email composition agent that creates well-structured emails based on research findings and context. Your primary goal is to create clear, professional, and actionable email content.
+
+When creating emails:
+- Use clear, professional language appropriate for business communication
+- Structure emails with proper greeting, body, and closing
+- Include relevant research insights when provided
+- Adapt tone and detail level to the intended recipient and context
+- Ensure emails are concise but informative
+- Include source references when citing research findings
+- Use actionable language and clear next steps when appropriate
+
+Guidelines:
+- Always maintain a professional yet approachable tone
+- Keep emails focused and avoid unnecessary verbosity  
+- Use proper email formatting with clear paragraphs
+- Include relevant context without overwhelming the recipient
+- Provide clear calls to action when needed
+
+You create email DRAFTS only - you do not send emails directly.
+"""
+
+
+@dataclass
+class EmailAgentDependencies:
+    """Dependencies for email agent execution."""
+    gmail_credentials_path: str
+    gmail_token_path: str
+    session_id: str = None
+
+
+# Initialize the email agent
 email_agent = Agent(
     get_llm_model(),
     deps_type=EmailAgentDependencies,
-    output_type=EmailDraft,
-    system_prompt="""You are a professional email composition agent. Your role is to create well-structured, 
-    professional emails based on research findings and user requirements.
-
-    Guidelines:
-    - Use clear, professional language appropriate for business communication
-    - Structure emails with proper greeting, body, and closing
-    - Include relevant research insights and key findings
-    - Maintain appropriate tone (formal, semi-formal, or casual as requested if applicable)
-    - Include source references when requested
-    - Keep emails concise but informative
-    - Use proper email etiquette and formatting
-    
-    Always return a properly formatted EmailDraft with all required fields."""
+    system_prompt=SYSTEM_PROMPT
 )
 
 
 @email_agent.tool
-async def authenticate_gmail(ctx: RunContext[EmailAgentDependencies]) -> str:
-    """Authenticate with Gmail API using OAuth2."""
-    
-    deps = ctx.deps
-    creds = None
-    
+async def authenticate_gmail(ctx: RunContext[EmailAgentDependencies]) -> Dict[str, Any]:
+    """Handles OAuth2 authentication with Gmail API."""
+    from tools.gmail_tools import authenticate_gmail_service
     try:
-        # Load existing token if available
-        if hasattr(deps, 'token_file') and deps.token_file:
-            try:
-                creds = Credentials.from_authorized_user_file(deps.token_file, deps.scopes)
-            except Exception as e:
-                logger.warning(f"Could not load existing token: {e}")
-        
-        # Refresh or get new credentials
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    deps.credentials_file, deps.scopes
-                )
-                creds = flow.run_local_server(port=0)
-            
-            # Save credentials for next run
-            if hasattr(deps, 'token_file') and deps.token_file:
-                with open(deps.token_file, 'w') as token:
-                    token.write(creds.to_json())
-        
-        return "Successfully authenticated with Gmail API"
-        
+        service = await authenticate_gmail_service(
+            ctx.deps.gmail_credentials_path,
+            ctx.deps.gmail_token_path
+        )
+        return {
+            "success": True, 
+            "message": "Gmail authenticated successfully", 
+            "service_available": True
+        }
+    except FileNotFoundError as e:
+        logger.error(f"Gmail setup required: {e}")
+        return {
+            "success": False, 
+            "error": "Gmail OAuth2 not configured", 
+            "message": "Run 'python setup_gmail.py' to configure Gmail authentication",
+            "recoverable": True,
+            "setup_command": "python setup_gmail.py"
+        }
     except Exception as e:
         logger.error(f"Gmail authentication failed: {e}")
-        raise RuntimeError(f"Gmail authentication failed: {e}")
+        error_message = str(e)
+        
+        # Check for common error patterns and provide helpful recovery steps
+        if "refresh" in error_message.lower():
+            return {
+                "success": False,
+                "error": f"Token refresh failed: {e}",
+                "message": "Gmail token has expired. Run 'python setup_gmail.py' to re-authenticate",
+                "recoverable": True,
+                "setup_command": "python setup_gmail.py"
+            }
+        elif "credentials" in error_message.lower():
+            return {
+                "success": False,
+                "error": f"Credentials error: {e}",
+                "message": "Gmail credentials file is invalid. Run 'python setup_gmail.py' to fix",
+                "recoverable": True,
+                "setup_command": "python setup_gmail.py"
+            }
+        else:
+            return {
+                "success": False,
+                "error": str(e),
+                "message": f"Gmail authentication failed: {e}",
+                "recoverable": False
+            }
+
 
 @email_agent.tool
 async def create_gmail_draft(
     ctx: RunContext[EmailAgentDependencies],
-    email_draft: EmailDraft
-) -> str:
-    """Create a draft in Gmail without sending."""
+    to: List[str],
+    subject: str,
+    body: str,
+    cc: List[str] = None,
+    bcc: List[str] = None
+) -> Dict[str, Any]:
+    """Creates a draft email in Gmail without sending."""
+    from tools.gmail_tools import authenticate_gmail_service, create_gmail_draft as create_draft
     
+    # First authenticate
     try:
-        # Authenticate first
-        await authenticate_gmail(ctx)
-        
-        # Build credentials and service
-        deps = ctx.deps
-        creds = Credentials.from_authorized_user_file(deps.token_file, deps.scopes)
-        service = build('gmail', 'v1', credentials=creds)
-        
-        # Create message
-        message = MIMEMultipart()
-        message['to'] = ', '.join(email_draft.to)
-        message['subject'] = email_draft.subject
-        
-        if email_draft.cc:
-            message['cc'] = ', '.join(email_draft.cc)
-        if email_draft.bcc:
-            message['bcc'] = ', '.join(email_draft.bcc)
-        
-        # Add body
-        body_part = MIMEText(email_draft.body, 'plain')
-        message.attach(body_part)
-        
-        # Encode message
-        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-        
-        # Create draft
-        draft_body = {'message': {'raw': raw_message}}
-        draft_result = service.users().drafts().create(
-            userId='me',
-            body=draft_body
-        ).execute()
-        
-        draft_id = draft_result.get('id')
-        logger.info(f"Draft created successfully with ID: {draft_id}")
-        
-        return f"Draft created successfully (Draft ID: {draft_id}). You can review and send it from Gmail."
-        
-    except HttpError as e:
-        logger.error(f"Gmail API error creating draft: {e}")
-        raise RuntimeError(f"Failed to create Gmail draft: {e}")
+        service = await authenticate_gmail_service(
+            ctx.deps.gmail_credentials_path,
+            ctx.deps.gmail_token_path
+        )
     except Exception as e:
-        logger.error(f"Unexpected error creating draft: {e}")
-        raise RuntimeError(f"Failed to create draft: {e}")
+        return {
+            "success": False,
+            "error": f"Gmail authentication failed: {e}",
+            "message": "Cannot create draft without Gmail authentication. Run 'python setup_gmail.py' first",
+            "recoverable": True
+        }
+    
+    # Create the draft
+    try:
+        result = await create_draft(
+            service=service,
+            recipients=to,
+            subject=subject,
+            body=body,
+            cc=cc,
+            bcc=bcc
+        )
+        
+        if result["success"]:
+            logger.info(f"Gmail draft created successfully: {result['draft_id']}")
+            return {
+                "success": True,
+                "draft_id": result["draft_id"],
+                "message_id": result["message_id"],
+                "message": f"Email draft created successfully in Gmail. Draft ID: {result['draft_id']}"
+            }
+        else:
+            logger.error(f"Failed to create Gmail draft: {result['error']}")
+            return {
+                "success": False,
+                "error": result["error"],
+                "message": f"Failed to create Gmail draft: {result['message']}"
+            }
+            
+    except Exception as e:
+        logger.error(f"Unexpected error creating Gmail draft: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"Unexpected error creating Gmail draft: {e}"
+        }
+
+
+@email_agent.tool  
+async def compose_email_content(
+    ctx: RunContext[EmailAgentDependencies],
+    recipient_email: str,
+    subject: str,
+    context: str,
+    research_summary: str = None,
+    tone: str = "professional"
+) -> Dict[str, Any]:
+    """
+    Compose email content based on context and research findings.
+    
+    Args:
+        recipient_email: Email address of the recipient
+        subject: Email subject line
+        context: Context or purpose for the email
+        research_summary: Optional research findings to include
+        tone: Email tone (professional, formal, friendly)
+    
+    Returns:
+        Dictionary with composed email content
+    """
+    try:
+        # Build the email content
+        greeting = f"Dear Colleague," if not recipient_email.split('@')[0].replace('.', ' ').title() else f"Dear {recipient_email.split('@')[0].replace('.', ' ').title()},"
+        
+        # Main body construction
+        body_parts = [greeting, ""]
+        
+        # Add context
+        if context:
+            body_parts.append(f"I hope this email finds you well. {context}")
+            body_parts.append("")
+        
+        # Add research summary if provided
+        if research_summary:
+            body_parts.append("Based on recent research findings:")
+            body_parts.append("")
+            body_parts.append(research_summary)
+            body_parts.append("")
+        
+        # Add closing
+        body_parts.extend([
+            "Please let me know if you have any questions or would like to discuss this further.",
+            "",
+            "Best regards,",
+            "Research Assistant"
+        ])
+        
+        email_body = "\n".join(body_parts)
+        
+        return {
+            "success": True,
+            "email_content": {
+                "to": [recipient_email],
+                "subject": subject,
+                "body": email_body,
+                "tone": tone
+            },
+            "message": "Email content composed successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to compose email content: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"Failed to compose email content: {e}"
+        }

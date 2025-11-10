@@ -1,170 +1,241 @@
-"""Simplified Research Agent with truthful error handling."""
+"""
+Research Agent that uses Brave Search and can delegate to Email Agent.
+"""
 
 import logging
-from typing import List, Optional
-import httpx
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass
+
 from pydantic_ai import Agent, RunContext
 
-from .dependencies import ResearchAgentDependencies, EmailAgentDependencies
-from .models import SearchResult, SearchQuery
-from .email_agent import email_agent
-from .providers import get_llm_model
-from .settings import settings
+from config.providers import get_llm_model
+from tools.brave_search import search_web_tool
+from agents.email_agent import email_agent, EmailAgentDependencies
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
-# Simplified research agent with truthful system prompt
+
+SYSTEM_PROMPT = """
+You are an expert research assistant with the ability to search the web and create email drafts. Your primary goal is to help users find relevant information and communicate findings effectively.
+
+Your capabilities:
+1. **Web Search**: Use Brave Search to find current, relevant information on any topic
+2. **Email Creation**: Create professional email drafts through Gmail when requested
+
+When conducting research:
+- Use specific, targeted search queries
+- Analyze search results for relevance and credibility
+- Synthesize information from multiple sources
+- Provide clear, well-organized summaries
+- Include source URLs for reference
+
+When creating emails:
+- Use research findings to create informed, professional content
+- Adapt tone and detail level to the intended recipient
+- Include relevant sources and citations when appropriate
+- Ensure emails are clear, concise, and actionable
+
+Always strive to provide accurate, helpful, and actionable information.
+"""
+
+
+@dataclass
+class ResearchAgentDependencies:
+    """Dependencies for the research agent - only configuration, no tool instances."""
+    brave_api_key: str
+    gmail_credentials_path: str
+    gmail_token_path: str
+    session_id: Optional[str] = None
+
+
+# Initialize the research agent
 research_agent = Agent(
     get_llm_model(),
     deps_type=ResearchAgentDependencies,
-    system_prompt="""You are a truthful research assistant. You MUST be completely honest about what actually happens.
-
-Your capabilities:
-1. Search the web using Brave Search API
-2. Delegate email creation to the email agent
-
-CRITICAL RULES:
-- ONLY claim success when operations actually succeed
-- If a tool fails, you MUST report the failure honestly
-- NEVER claim to have sent emails unless they were actually sent
-- NEVER claim to have created drafts unless they were actually created
-- If credentials are missing, report this clearly
-- Be helpful but always truthful about what you can and cannot do
-
-When tools fail, explain what went wrong and suggest solutions."""
+    system_prompt=SYSTEM_PROMPT
 )
 
 
 @research_agent.tool
 async def search_web(
-    ctx: RunContext[ResearchAgentDependencies], 
+    ctx: RunContext[ResearchAgentDependencies],
     query: str,
     max_results: int = 10
-) -> str:
-    """Search the web using Brave Search API."""
+) -> List[Dict[str, Any]]:
+    """
+    Search the web using Brave Search API.
     
-    try:
-        # Validate query
-        search_query = SearchQuery(query=query, max_results=max_results)
+    Args:
+        query: Search query
+        max_results: Maximum number of results to return (1-20)
+    
+    Returns:
+        List of search results with title, URL, description, and score
+    """
+    try:        
+        # Ensure max_results is within valid range
+        max_results = min(max(max_results, 1), 20)
         
-        # Prepare request
-        deps = ctx.deps
-        url = "https://api.search.brave.com/res/v1/web/search"
+        results = await search_web_tool(
+            api_key=ctx.deps.brave_api_key,
+            query=query,
+            count=max_results
+        )
         
-        params = {
-            "q": search_query.query,
-            "count": min(search_query.max_results, settings.max_search_results),
-            "format": "json",
-            "safesearch": "moderate"
-        }
-        
-        headers = {
-            "Accept": "application/json",
-            "X-Subscription-Token": deps.brave_api_key
-        }
-        
-        # Make request
-        async with httpx.AsyncClient(timeout=settings.request_timeout) as client:
-            response = await client.get(url, params=params, headers=headers)
-            response.raise_for_status()
-            
-            data = response.json()
-            web_results = data.get("web", {}).get("results", [])
-            
-            if not web_results:
-                return f"SEARCH RESULT: No results found for '{query}'"
-            
-            # Format results simply
-            formatted_results = [f"Found {len(web_results)} results for '{query}':\n"]
-            
-            for i, item in enumerate(web_results[:search_query.max_results], 1):
-                formatted_results.append(f"{i}. {item.get('title', 'No title')}")
-                formatted_results.append(f"   {item.get('description', 'No description')}")
-                formatted_results.append(f"   URL: {item.get('url', '')}\n")
-            
-            return "SEARCH SUCCESS: " + "\n".join(formatted_results)
-            
-    except httpx.HTTPStatusError as e:
-        error_msg = f"SEARCH FAILED: HTTP {e.response.status_code}"
-        if e.response.status_code == 401:
-            error_msg += " - Invalid API key. Check your Brave API configuration."
-        elif e.response.status_code == 429:
-            error_msg += " - Rate limit exceeded. Try again later."
-        logger.error(error_msg)
-        return error_msg
+        logger.info(f"Found {len(results)} results for query: {query}")
+        return results
         
     except Exception as e:
-        error_msg = f"SEARCH FAILED: {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+        logger.error(f"Web search failed: {e}")
+        return [{"error": f"Search failed: {str(e)}"}]
 
 
 @research_agent.tool
-async def delegate_to_email_agent(
+async def create_email_draft(
     ctx: RunContext[ResearchAgentDependencies],
-    research_findings: str,
-    recipients: List[str],
-    email_purpose: str,
-    tone: str = "professional"
-) -> str:
-    """Delegate email creation to the email agent with research findings."""
+    recipient_email: str,
+    subject: str,
+    context: str,
+    research_summary: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Create an email draft based on research context using the Email Agent.
     
+    Args:
+        recipient_email: Email address of the recipient
+        subject: Email subject line
+        context: Context or purpose for the email
+        research_summary: Optional research findings to include
+    
+    Returns:
+        Dictionary with draft creation results
+    """
     try:
-        # Check if we have email credentials
-        try:
-            email_deps = EmailAgentDependencies.from_settings()
-            # Basic validation - check if credentials file exists
-            import os
-            if not os.path.exists(email_deps.credentials_file):
-                return "EMAIL DELEGATION FAILED: Gmail credentials file not found. Please set up Gmail OAuth2 credentials first."
-        except Exception as cred_error:
-            return f"EMAIL DELEGATION FAILED: Credentials setup error - {str(cred_error)}"
-        
-        # Create the email request prompt
-        email_prompt = f"""Create a professional email draft based on this research:
+        # Prepare the email content prompt
+        if research_summary:
+            email_prompt = f"""
+Create a professional email to {recipient_email} with the subject "{subject}".
 
-Research Findings:
-{research_findings}
+Context: {context}
 
-Email Details:
-- Recipients: {', '.join(recipients)}
-- Purpose: {email_purpose}
-- Tone: {tone}
+Research Summary:
+{research_summary}
 
-Please create an appropriate email draft."""
+Please create a well-structured email that:
+1. Has an appropriate greeting
+2. Provides clear context
+3. Summarizes the key research findings professionally
+4. Includes actionable next steps if appropriate
+5. Ends with a professional closing
 
-        # Delegate to email agent
-        email_result = await email_agent.run(
-            email_prompt,
-            deps=email_deps
-        )
-        
-        # Check if email agent succeeded
-        if hasattr(email_result, 'output') and email_result.output:
-            return f"EMAIL DELEGATION SUCCESS: Email draft created for {', '.join(recipients)}. The email agent has prepared a {tone} email about {email_purpose}."
+The email should be informative but concise, and maintain a professional yet friendly tone.
+"""
         else:
-            return f"EMAIL DELEGATION FAILED: Email agent did not produce a valid result."
-            
-    except Exception as e:
-        error_msg = f"EMAIL DELEGATION FAILED: {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+            email_prompt = f"""
+Create a professional email to {recipient_email} with the subject "{subject}".
 
+Context: {context}
 
-# External function for testing
-async def test_research_with_missing_credentials(query: str) -> str:
-    """Test function to verify truthful behavior with missing credentials."""
-    
-    try:
-        deps = ResearchAgentDependencies(brave_api_key=settings.brave_api_key)
+Please create a well-structured email that addresses the context provided.
+"""
         
-        result = await research_agent.run(
-            f"""Search for information about '{query}' and then create an email draft for test@example.com about your findings.""",
-            deps=deps
+        # Create dependencies for email agent
+        email_deps = EmailAgentDependencies(
+            gmail_credentials_path=ctx.deps.gmail_credentials_path,
+            gmail_token_path=ctx.deps.gmail_token_path,
+            session_id=ctx.deps.session_id
         )
         
-        return result.output if hasattr(result, 'output') else str(result)
+        # Run the email agent
+        result = await email_agent.run(
+            email_prompt,
+            deps=email_deps,
+            usage=ctx.usage  # Pass usage for token tracking
+        )
+        
+        logger.info(f"Email agent invoked for recipient: {recipient_email}")
+        
+        return {
+            "success": True,
+            "agent_response": result.output,
+            "recipient": recipient_email,
+            "subject": subject,
+            "context": context
+        }
         
     except Exception as e:
-        return f"Test failed: {e}"
+        logger.error(f"Failed to create email draft via Email Agent: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "recipient": recipient_email,
+            "subject": subject
+        }
+
+
+@research_agent.tool
+async def summarize_research(
+    ctx: RunContext[ResearchAgentDependencies],
+    search_results: List[Dict[str, Any]],
+    topic: str,
+    focus_areas: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Create a comprehensive summary of research findings.
+    
+    Args:
+        search_results: List of search result dictionaries
+        topic: Main research topic
+        focus_areas: Optional specific areas to focus on
+    
+    Returns:
+        Dictionary with research summary
+    """
+    try:
+        if not search_results:
+            return {
+                "summary": "No search results provided for summarization.",
+                "key_points": [],
+                "sources": []
+            }
+        
+        # Extract key information
+        sources = []
+        descriptions = []
+        
+        for result in search_results:
+            if "title" in result and "url" in result:
+                sources.append(f"- {result['title']}: {result['url']}")
+                if "description" in result:
+                    descriptions.append(result["description"])
+        
+        # Create summary content
+        content_summary = "\n".join(descriptions[:5])  # Limit to top 5 descriptions
+        sources_list = "\n".join(sources[:10])  # Limit to top 10 sources
+        
+        focus_text = f"\nSpecific focus areas: {focus_areas}" if focus_areas else ""
+        
+        summary = f"""
+Research Summary: {topic}{focus_text}
+
+Key Findings:
+{content_summary}
+
+Sources:
+{sources_list}
+"""
+        
+        return {
+            "summary": summary,
+            "topic": topic,
+            "sources_count": len(sources),
+            "key_points": descriptions[:5]
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to summarize research: {e}")
+        return {
+            "summary": f"Failed to summarize research: {str(e)}",
+            "key_points": [],
+            "sources": []
+        }

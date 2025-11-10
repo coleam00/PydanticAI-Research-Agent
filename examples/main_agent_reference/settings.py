@@ -33,6 +33,10 @@ class Settings(BaseSettings):
         default="https://api.search.brave.com/res/v1/web/search"
     )
     
+    # Gmail OAuth2 Configuration
+    gmail_credentials_path: str = Field(default="credentials.json")
+    gmail_token_path: str = Field(default="token.pickle")
+    
     # Application Configuration
     app_env: str = Field(default="development")
     log_level: str = Field(default="INFO")

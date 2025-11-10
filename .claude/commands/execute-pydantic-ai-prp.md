@@ -19,7 +19,6 @@ Implement a Pydantic AI agent using the PRP file.
    - Use the TodoWrite tool to create and track your agent implementation plan
    - Follow main_agent_reference patterns for configuration and structure
    - Plan agent.py, tools.py, dependencies.py, and testing approach
-   - "Remember: Archon first, TodoWrite never as primary" THIS IS VERY IMPORTANT
 
 3. **Execute the plan**
    - Implement the Pydantic AI agent following the PRP

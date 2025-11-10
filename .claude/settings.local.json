@@ -1,20 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "mcp__archon__perform_rag_query",
-      "mcp__archon__search_code_examples",
-      "mcp__archon__get_available_sources",
-      "mcp__archon__health_check",
-      "mcp__archon__manage_project",
-      "mcp__archon__manage_task",
       "Bash(mkdir:*)",
-      "Bash(chmod:*)",
-      "Bash(touch:*)",
-      "Bash(python -m pytest tests/ -v)",
-      "Bash(pip install:*)",
       "Bash(python:*)",
+      "Bash(source:*)",
+      "Bash(pip install:*)",
       "Bash(mv:*)",
-      "WebFetch(domain:ai.pydantic.dev)"
+      "Bash(true)",
+      "Bash(grep:*)",
+      "Bash(timeout 10 python:*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }

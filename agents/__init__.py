@@ -1,8 +1,13 @@
 """
-PydanticAI Research & Email Multi-Agent System
-
-A production-ready multi-agent system with research capabilities via Brave Search
-and email automation via Gmail integration, featuring real-time CLI streaming.
+PydanticAI agents for research and email functionality.
 """
 
-__version__ = "1.0.0"
+from .research_agent import research_agent, ResearchAgentDependencies
+from .email_agent import email_agent, EmailAgentDependencies
+
+__all__ = [
+    "research_agent",
+    "ResearchAgentDependencies", 
+    "email_agent",
+    "EmailAgentDependencies"
+]

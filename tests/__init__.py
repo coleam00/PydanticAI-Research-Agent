@@ -1,1 +1,3 @@
-"""Test suite for the multi-agent system."""
+"""
+Tests for the research email agent system.
+"""
