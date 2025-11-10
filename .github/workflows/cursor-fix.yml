@@ -49,8 +49,8 @@ jobs:
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
-          # Run cursor-agent with the fix instructions
-          cursor-agent -p "$(cat /tmp/cursor_fix_prompt.txt)" --model gpt-5
+          # Run cursor-agent with the fix instructions and full write permissions
+          cursor-agent -p "$(cat /tmp/cursor_fix_prompt.txt)" --model gpt-5 --force
 
   unauthorized-message:
     # Post message for unauthorized users

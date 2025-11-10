@@ -46,14 +46,14 @@ jobs:
         id: codex
         uses: openai/codex-action@main
         timeout-minutes: 30
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+
           # Fix-specific instructions loaded from template
           prompt: ${{ steps.load-instructions.outputs.CUSTOM_INSTRUCTIONS }}
 
           # Configure Codex for workspace write access
-          sandbox: workspace-write
+          codex_args: '["--config","sandbox_mode=\"workspace-write\""]'
 
   unauthorized-message:
     # Post message for unauthorized users

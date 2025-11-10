@@ -49,8 +49,8 @@ jobs:
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
-          # Run cursor-agent with the review instructions
-          cursor-agent -p "$(cat /tmp/cursor_review_prompt.txt)" --model gpt-5
+          # Run cursor-agent with the review instructions and permission to post comments
+          cursor-agent -p "$(cat /tmp/cursor_review_prompt.txt)" --model gpt-5 --force
 
   unauthorized-message:
     # Post message for unauthorized users
