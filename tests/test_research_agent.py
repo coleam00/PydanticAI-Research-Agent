@@ -16,7 +16,7 @@ def test_deps():
     return ResearchAgentDependencies(
         brave_api_key="test_brave_key",
         gmail_credentials_path="test_credentials.json",
-        gmail_token_path="test_token.pickle",
+        gmail_token_path="test_token.json",
         session_id="test_session"
     )
 
@@ -80,12 +80,12 @@ def test_research_agent_dependencies():
     deps = ResearchAgentDependencies(
         brave_api_key="test_key",
         gmail_credentials_path="credentials.json",
-        gmail_token_path="token.pickle"
+        gmail_token_path="token.json"
     )
     
     assert deps.brave_api_key == "test_key"
     assert deps.gmail_credentials_path == "credentials.json"
-    assert deps.gmail_token_path == "token.pickle"
+    assert deps.gmail_token_path == "token.json"
     assert deps.session_id is None
 
 

@@ -23,6 +23,36 @@ console = Console()
 SCOPES = ['https://www.googleapis.com/auth/gmail.compose']
 
 
+def _ensure_token_dir(token_path: str) -> None:
+    """Create directory for token if specified."""
+    token_dir = os.path.dirname(token_path)
+    if token_dir:
+        os.makedirs(token_dir, exist_ok=True)
+
+
+def _save_token(creds: Credentials, token_path: str) -> None:
+    """Persist credentials matching the token file extension."""
+    _ensure_token_dir(token_path)
+    if token_path.endswith(".json"):
+        with open(token_path, 'w') as token:
+            token.write(creds.to_json())
+    else:
+        with open(token_path, 'wb') as token:
+            pickle.dump(creds, token)
+
+
+def _load_token(token_path: str) -> Credentials:
+    """Load stored credentials respecting the token file extension."""
+    if token_path.endswith(".json"):
+        try:
+            return Credentials.from_authorized_user_file(token_path, SCOPES)
+        except Exception:
+            # Fallback to pickle for legacy tokens stored with new extension
+            pass
+    with open(token_path, 'rb') as token:
+        return pickle.load(token)
+
+
 def display_welcome():
     """Display welcome message and setup instructions."""
     welcome_text = """
@@ -110,9 +140,7 @@ def run_oauth_flow(credentials_path: str, token_path: str) -> bool:
         creds = flow.run_local_server(port=0)
         
         # Save token
-        os.makedirs(os.path.dirname(token_path), exist_ok=True)
-        with open(token_path, 'wb') as token:
-            pickle.dump(creds, token)
+        _save_token(creds, token_path)
         
         console.print(f"[green]✓ Authentication successful! Token saved to {token_path}[/green]")
         return True
@@ -128,8 +156,7 @@ def test_gmail_connection(token_path: str) -> bool:
         console.print("\n[yellow]Testing Gmail API connection...[/yellow]")
         
         # Load credentials
-        with open(token_path, 'rb') as token:
-            creds = pickle.load(token)
+        creds = _load_token(token_path)
         
         # Build service
         service = build('gmail', 'v1', credentials=creds)
@@ -151,7 +178,7 @@ def create_env_example():
     """Create .env.example with Gmail configuration."""
     env_content = """# Gmail OAuth2 Configuration
 GMAIL_CREDENTIALS_PATH=credentials.json
-GMAIL_TOKEN_PATH=token.pickle
+GMAIL_TOKEN_PATH=token.json
 
 # LLM Configuration
 LLM_PROVIDER=openai
@@ -174,7 +201,7 @@ def main():
     
     # Get paths from environment or defaults
     credentials_path = os.getenv('GMAIL_CREDENTIALS_PATH', 'credentials.json')
-    token_path = os.getenv('GMAIL_TOKEN_PATH', 'token.pickle')
+    token_path = os.getenv('GMAIL_TOKEN_PATH', 'token.json')
     
     console.print(f"[blue]Credentials path: {credentials_path}[/blue]")
     console.print(f"[blue]Token path: {token_path}[/blue]\n")
@@ -235,7 +262,7 @@ def main():
 3. Run the research agent: `python research_email_cli.py`
 
 ## Security reminders:
-- **Never commit credentials.json or token.pickle to version control**
+- **Never commit credentials.json or token.json to version control**
 - Add them to your .gitignore file
 - Keep your API keys secure in the .env file
     """

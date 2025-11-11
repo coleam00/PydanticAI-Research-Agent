@@ -3,7 +3,6 @@ Gmail OAuth2 tools and draft creation functionality.
 """
 
 import os
-import pickle
 import base64
 import logging
 from email.mime.text import MIMEText
@@ -13,6 +12,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from typing import Dict, Any, List
+import pickle
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,36 @@ class MockExecuteResponse:
         return self.response_data
 
 
+def _ensure_token_dir(token_path: str) -> None:
+    """Create token directory if the path specifies one."""
+    token_dir = os.path.dirname(token_path)
+    if token_dir:
+        os.makedirs(token_dir, exist_ok=True)
+
+
+def _save_token(creds: Credentials, token_path: str) -> None:
+    """Save credentials using JSON when requested, pickle otherwise."""
+    _ensure_token_dir(token_path)
+    if token_path.endswith(".json"):
+        with open(token_path, 'w') as token:
+            token.write(creds.to_json())
+    else:
+        with open(token_path, 'wb') as token:
+            pickle.dump(creds, token)
+
+
+def _load_token(token_path: str) -> Credentials:
+    """Load credentials, supporting legacy pickle tokens."""
+    if token_path.endswith(".json"):
+        try:
+            return Credentials.from_authorized_user_file(token_path, SCOPES)
+        except Exception:
+            # Fallback to pickle for legacy serialized tokens
+            pass
+    with open(token_path, 'rb') as token:
+        return pickle.load(token)
+
+
 async def authenticate_gmail_service(credentials_path: str, token_path: str, test_mode: bool = False):
     """Authenticate and return Gmail service instance."""
     # Return mock service for testing
@@ -79,8 +109,7 @@ async def authenticate_gmail_service(credentials_path: str, token_path: str, tes
     # Token loading and refresh logic
     if os.path.exists(token_path):
         try:
-            with open(token_path, 'rb') as token:
-                creds = pickle.load(token)
+            creds = _load_token(token_path)
         except Exception as e:
             logger.warning(f"Failed to load existing token: {e}")
             # Remove corrupted token file
@@ -115,9 +144,7 @@ async def authenticate_gmail_service(credentials_path: str, token_path: str, tes
         
         # Save tokens
         try:
-            os.makedirs(os.path.dirname(token_path), exist_ok=True)
-            with open(token_path, 'wb') as token:
-                pickle.dump(creds, token)
+            _save_token(creds, token_path)
             logger.info(f"Successfully saved Gmail token to {token_path}")
         except Exception as e:
             logger.warning(f"Failed to save token: {e}")

@@ -121,7 +121,7 @@ BRAVE_API_KEY=your-brave-search-api-key-here
 
 # Gmail OAuth2 Configuration  
 GMAIL_CREDENTIALS_PATH=credentials.json
-GMAIL_TOKEN_PATH=token.pickle
+GMAIL_TOKEN_PATH=token.json
 
 # Application Configuration
 APP_ENV=development
@@ -254,7 +254,7 @@ This implementation demonstrates key PydanticAI patterns:
 
 ## 🚨 Important Notes
 
-- **Never commit** `credentials.json` or `token.pickle` to version control
+- **Never commit** `credentials.json` or `token.json` to version control
 - **Add to .gitignore**: All sensitive files are properly excluded
 - **API Rate Limits**: Brave Search has usage quotas - monitor consumption
 - **Token Expiry**: Gmail tokens refresh automatically but may need re-authentication
