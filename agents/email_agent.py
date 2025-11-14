@@ -4,12 +4,12 @@ Email Agent that creates Gmail drafts with professional email composition.
 
 import logging
 from typing import Dict, Any, List
-from dataclasses import dataclass
 
 from pydantic_ai import Agent, RunContext
 
 from config.providers import get_llm_model
 from models.email_models import EmailDraft
+from agents.dependencies import EmailAgentDependencies
 
 logger = logging.getLogger(__name__)
 
@@ -28,21 +28,13 @@ When creating emails:
 
 Guidelines:
 - Always maintain a professional yet approachable tone
-- Keep emails focused and avoid unnecessary verbosity  
+- Keep emails focused and avoid unnecessary verbosity
 - Use proper email formatting with clear paragraphs
 - Include relevant context without overwhelming the recipient
 - Provide clear calls to action when needed
 
 You create email DRAFTS only - you do not send emails directly.
 """
-
-
-@dataclass
-class EmailAgentDependencies:
-    """Dependencies for email agent execution."""
-    gmail_credentials_path: str
-    gmail_token_path: str
-    session_id: str = None
 
 
 # Initialize the email agent

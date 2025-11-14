@@ -13,16 +13,19 @@ from agents.models import SearchResult, ResearchSummary, EmailDraft
 @pytest.fixture
 def research_deps():
     """Create test dependencies for research agent."""
-    return ResearchAgentDependencies(brave_api_key="test_key")
+    return ResearchAgentDependencies(
+        brave_api_key="test_key",
+        gmail_credentials_path="test_credentials.json",
+        gmail_token_path="test_token.json"
+    )
 
 
 @pytest.fixture
 def email_deps():
     """Create test dependencies for email agent."""
     return EmailAgentDependencies(
-        credentials_file="test_credentials.json",
-        token_file="test_token.json",
-        scopes=["test_scope"]
+        gmail_credentials_path="test_credentials.json",
+        gmail_token_path="test_token.json"
     )
 
 
@@ -38,7 +41,8 @@ async def test_email_agent_creation():
     """Test email agent instantiation."""
     assert email_agent is not None
     assert email_agent._deps_type == EmailAgentDependencies
-    assert email_agent.output_type == EmailDraft
+    # Email agent uses default string output, not structured EmailDraft output
+    assert email_agent.output_type == str
 
 
 @pytest.mark.asyncio
@@ -59,13 +63,14 @@ async def test_research_agent_with_test_model(research_deps):
 @pytest.mark.asyncio
 async def test_email_agent_with_test_model(email_deps):
     """Test email agent with TestModel."""
-    
+
     # Test the agent creation and basic properties
     assert email_agent is not None
     assert email_agent._deps_type == EmailAgentDependencies
-    assert email_agent.output_type == EmailDraft
-    
-    # For structured output agents with tools, testing is complex
+    # Email agent uses default string output per CLAUDE.md guidelines
+    assert email_agent.output_type == str
+
+    # For agents with tools, testing is complex
     # This test verifies the agent is properly configured
 
 
@@ -146,11 +151,11 @@ class TestAgentIntegration:
         # Test agent properties and configuration
         assert research_agent._deps_type == ResearchAgentDependencies
         assert email_agent._deps_type == EmailAgentDependencies
-        
-        # Test that both agents have different output types
+
+        # Test that both agents use string output (PydanticAI default)
         assert research_agent.output_type == str  # String output
-        assert email_agent.output_type == EmailDraft  # Structured output
-        
+        assert email_agent.output_type == str  # String output per CLAUDE.md
+
         # Verify dependencies are different types
         assert research_deps.__class__ != email_deps.__class__
     

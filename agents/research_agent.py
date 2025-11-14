@@ -4,13 +4,12 @@ Research Agent that uses Brave Search and can delegate to Email Agent.
 
 import logging
 from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
 
 from pydantic_ai import Agent, RunContext
 
 from config.providers import get_llm_model
 from tools.brave_search import search_web_tool
-from agents.email_agent import email_agent, EmailAgentDependencies
+from agents.dependencies import ResearchAgentDependencies, EmailAgentDependencies
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +36,6 @@ When creating emails:
 
 Always strive to provide accurate, helpful, and actionable information.
 """
-
-
-@dataclass
-class ResearchAgentDependencies:
-    """Dependencies for the research agent - only configuration, no tool instances."""
-    brave_api_key: str
-    gmail_credentials_path: str
-    gmail_token_path: str
-    session_id: Optional[str] = None
 
 
 # Initialize the research agent

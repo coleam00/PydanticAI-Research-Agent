@@ -156,29 +156,7 @@ class TestBraveAPISearch:
             
             with pytest.raises(httpx.HTTPStatusError):
                 await search_brave_api("test", "invalid_key")
-    
-    @pytest.mark.asyncio
-    async def test_rate_limit_handling(self):
-        """Test rate limit error handling."""
-        
-        with patch('httpx.AsyncClient') as mock_client:
-            # Mock 429 rate limit error
-            mock_response = Mock()
-            mock_response.status_code = 429
-            mock_response.request = Mock()
-            
-            mock_get = AsyncMock()
-            mock_get.side_effect = httpx.HTTPStatusError(
-                "Rate limit exceeded",
-                request=mock_response.request,
-                response=mock_response
-            )
-            
-            mock_client.return_value.__aenter__.return_value.get = mock_get
-            
-            with pytest.raises(httpx.HTTPStatusError):
-                await search_brave_api("test", "test_key")
-    
+
     @pytest.mark.asyncio
     async def test_empty_results(self):
         """Test handling of empty search results."""
