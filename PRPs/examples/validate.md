@@ -22,7 +22,7 @@ uv run python -m pytest tests/ -v
 ### Instructions for AI Assistant:
 
 You should intelligently design 3-5 test queries that:
-- Test the search tool with real queries (this will verify `ctx.deps.brave_api_key` works)
+- Test the search tool with real queries
 - Test different types of research requests
 - Verify the agent handles errors gracefully
 - Check that tools are properly registered and accessible
@@ -38,7 +38,7 @@ For each test:
 - Verify the agent actually executes tools (not just returns mock responses)
 
 **Be creative and thorough** - design tests that would catch real production issues like:
-- Incorrect RunContext attribute access (e.g., `ctx.brave_api_key` vs `ctx.deps.brave_api_key`)
+- Incorrect attribute access
 - Tool registration problems
 - Dependency injection failures
 - API integration issues

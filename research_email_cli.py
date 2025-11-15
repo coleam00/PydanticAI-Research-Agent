@@ -8,8 +8,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.text import Text
+from rich.markdown import Markdown
 
 from pydantic_ai import Agent
+from pydantic_ai.messages import PartStartEvent, PartDeltaEvent, TextPart, TextPartDelta
 from agents import research_agent, ResearchAgentDependencies
 from config.settings import settings
 
@@ -33,33 +35,39 @@ Respond naturally and helpfully."""
         # Stream the agent execution
         response_text = ""
         async with research_agent.iter(prompt, deps=deps) as run:
-            
+
             async for node in run:
-                
+
                 # Handle user prompt node
                 if Agent.is_user_prompt_node(node):
                     pass  # Clean start - no processing messages
-                
+
                 # Handle model request node - stream the thinking process
                 elif Agent.is_model_request_node(node):
                     # Show assistant prefix at the start
                     console.print("[bold blue]Assistant:[/bold blue] ", end="")
-                    
+
                     # Stream model request events for real-time text
                     async with node.stream(run.ctx) as request_stream:
                         async for event in request_stream:
-                            # Handle different event types based on their type
-                            event_type = type(event).__name__
-                            
-                            if event_type == "PartDeltaEvent":
-                                # Extract content from delta
-                                if hasattr(event, 'delta') and hasattr(event.delta, 'content_delta'):
+                            # Handle PartStartEvent - contains the FIRST TOKEN
+                            if isinstance(event, PartStartEvent):
+                                # Check if this is a text part
+                                if isinstance(event.part, TextPart):
+                                    # Get the initial content (first token)
+                                    initial_content = event.part.content
+                                    if initial_content:
+                                        console.print(initial_content, end="")
+                                        response_text += initial_content
+
+                            # Handle PartDeltaEvent - contains subsequent tokens
+                            elif isinstance(event, PartDeltaEvent):
+                                # Check if this is a text delta
+                                if isinstance(event.delta, TextPartDelta):
                                     delta_text = event.delta.content_delta
                                     if delta_text:
                                         console.print(delta_text, end="")
                                         response_text += delta_text
-                            elif event_type == "FinalResultEvent":
-                                console.print()  # New line after streaming
                 
                 # Handle tool calls - this is the key part
                 elif Agent.is_call_tools_node(node):
@@ -111,11 +119,11 @@ Respond naturally and helpfully."""
                                     result = result[:97] + "..."
                                 console.print(f"  ✅ [green]Tool call complete.[/green]")
                 
-                # Handle end node  
+                # Handle end node
                 elif Agent.is_end_node(node):
-                    # Don't show "Processing complete" - keep it clean
-                    pass
-        
+                    # Print newline at the very end of streaming
+                    console.print()
+
         # Get final result
         final_result = run.result
         final_output = final_result.output if hasattr(final_result, 'output') else str(final_result)
