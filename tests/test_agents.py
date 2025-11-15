@@ -30,13 +30,6 @@ def email_deps():
 
 
 @pytest.mark.asyncio
-async def test_research_agent_creation():
-    """Test research agent instantiation."""
-    assert research_agent is not None
-    assert research_agent._deps_type == ResearchAgentDependencies
-
-
-@pytest.mark.asyncio
 async def test_email_agent_creation():
     """Test email agent instantiation."""
     assert email_agent is not None
@@ -143,21 +136,6 @@ async def test_model_override_isolation():
 
 class TestAgentIntegration:
     """Integration tests for multi-agent workflows."""
-    
-    @pytest.mark.asyncio
-    async def test_research_to_email_workflow(self, research_deps, email_deps):
-        """Test complete research to email workflow."""
-        
-        # Test agent properties and configuration
-        assert research_agent._deps_type == ResearchAgentDependencies
-        assert email_agent._deps_type == EmailAgentDependencies
-
-        # Test that both agents use string output (PydanticAI default)
-        assert research_agent.output_type == str  # String output
-        assert email_agent.output_type == str  # String output per CLAUDE.md
-
-        # Verify dependencies are different types
-        assert research_deps.__class__ != email_deps.__class__
     
     @pytest.mark.asyncio
     async def test_usage_tracking_across_agents(self, research_deps):

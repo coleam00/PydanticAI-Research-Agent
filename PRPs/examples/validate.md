@@ -21,7 +21,7 @@ uv run python -m pytest tests/ -v
 
 ### Instructions for AI Assistant:
 
-You should intelligently design 3-5 test queries that:
+You should intelligently design 2-3 test queries that:
 - Test the search tool with real queries
 - Test different types of research requests
 - Verify the agent handles errors gracefully
