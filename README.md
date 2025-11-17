@@ -81,7 +81,7 @@ The workflows use reusable prompt templates (`.github/issue_fix_prompt.md` and `
 
 1. **Clone and setup virtual environment**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/coleam00/PydanticAI-Research-Agent.git
    cd PydanticAI-Research-Agent
    python3 -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate

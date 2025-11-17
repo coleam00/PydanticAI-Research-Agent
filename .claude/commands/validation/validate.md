@@ -8,7 +8,7 @@ Execute the following command and report results:
 uv run python -m pytest tests/ -v
 ```
 
-**Expected:** All 58 tests pass
+**Expected:** All 56 tests pass
 
 ## Summary Report
 
