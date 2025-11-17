@@ -26,6 +26,7 @@ You should intelligently design 2-3 test queries that:
 - Test different types of research requests
 - Verify the agent handles errors gracefully
 - Check that tools are properly registered and accessible
+- Avoid Windows unicode errors (we don't care about addressing those)
 
 Run each query using:
 ```bash
