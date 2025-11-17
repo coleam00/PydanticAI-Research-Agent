@@ -19,4 +19,4 @@ After tests complete, provide a summary report with:
 - Any errors or warnings encountered
 - Overall health assessment (✅ PASS / ❌ FAIL)
 
-**Format the report clearly with status indicators**j
+**Format the report clearly with status indicators**
